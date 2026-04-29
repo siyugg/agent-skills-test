@@ -11,7 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY deploy/app/main.py .
 COPY marketing-intern ./marketing-intern
 
-# OpenShift-compatible: allow arbitrary UID to read app dir
+# OpenShift-compatible: group root (0) readable for arbitrary UID
+USER root
 RUN chgrp -R 0 /app && chmod -R g=u /app
 
 USER 1001

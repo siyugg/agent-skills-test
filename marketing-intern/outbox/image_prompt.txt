@@ -1,0 +1,44 @@
+Create two polished campaign visuals for a professional healthcare technology workshop.
+
+PROJECT:
+OpenShift AI for Healthcare: From Ideas to Real-World Outcomes
+
+DELIVERABLE 1:
+Portrait event poster, aspect ratio 4:5 or A4-friendly vertical composition.
+
+DELIVERABLE 2:
+Square social media graphic, aspect ratio 1:1.
+
+STYLE:
+Modern, professional, clean, premium corporate event campaign design. Healthcare-themed and AI-themed, but realistic and business-appropriate. Avoid childish illustration, dark sci-fi, neon cyberpunk, or clutter. The mood should feel innovative, optimistic, trustworthy, and polished.
+
+COLOR PALETTE:
+Deep blue and white as primary colors, with soft cyan and light grey secondary tones, plus bright teal accents for call-to-action emphasis.
+
+IMAGERY:
+Show one or two healthcare professionals in a modern clinical or innovation workspace, possibly reviewing data on a tablet or digital display. Add subtle transparent UI overlays, healthcare data visualization cues, or AI assistance interface elements. Keep overlays minimal, elegant, and believable. Environment should be bright, clean, contemporary, and professional.
+
+COMPOSITION:
+Strong headline area with clear hierarchy. Plenty of whitespace. Event details should be easy to place and read. Keep space for headline, subheadline, event details, and CTA. The design should feel suitable for LinkedIn, internal campaign use, and an event poster.
+
+TEXT TO ACCOMMODATE:
+Headline: OpenShift AI for Healthcare
+Subheadline: From Ideas to Real-World Outcomes
+Supporting message: Practical healthcare AI use cases, agentic AI, live demo, Q&A and networking
+Date: 15 May 2026
+Time: 2:00 PM – 5:00 PM
+Venue: Red Hat Singapore Office
+CTA: Register now to secure your slot
+Registration note: Register via internal event page or QR code
+
+POSTER-SPECIFIC NOTES:
+Use a vertical layout with the title at the top, hero image in the middle, and event details plus CTA in the lower section. Make the title prominent and the information block highly readable.
+
+SQUARE-POST NOTES:
+Use a tighter crop of the same visual language. Keep the headline short and bold, with date and CTA clearly visible in the lower third.
+
+DO NOT INCLUDE:
+Cartoon animals, joke imagery, dark humor, cluttered interfaces, dystopian visuals, or unrealistic futuristic hospital scenes.
+
+OUTPUT QUALITY:
+High-resolution, campaign-ready, realistic, elegant, and visually balanced.

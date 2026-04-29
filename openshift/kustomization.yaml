@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: marketing-intern
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - route.yaml
+
+commonLabels:
+  app.kubernetes.io/name: marketing-intern
+  app.kubernetes.io/part-of: agent-skills-test
+
+# Point this at the image you built and pushed to your cluster (or external registry).
+# Example internal registry:
+#   newName: image-registry.openshift-image-registry.svc:5000/marketing-intern/marketing-intern
+images:
+  - name: marketing-intern
+    newName: image-registry.openshift-image-registry.svc:5000/marketing-intern/marketing-intern
+    newTag: latest

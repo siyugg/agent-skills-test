@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketing-intern
+  labels:
+    app: marketing-intern
+spec:
+  selector:
+    app: marketing-intern
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

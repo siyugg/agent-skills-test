@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketing-intern
+  labels:
+    app: marketing-intern
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: marketing-intern
+  template:
+    metadata:
+      labels:
+        app: marketing-intern
+    spec:
+      containers:
+        - name: marketing-intern
+          # Replace after you push to your registry, or patch with kustomize `images`
+          image: marketing-intern:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

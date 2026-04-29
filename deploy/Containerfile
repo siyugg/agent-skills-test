@@ -1,0 +1,22 @@
+# Build from repository root:
+#   podman build -f deploy/Containerfile -t marketing-intern:latest .
+
+FROM registry.redhat.io/ubi9/python-311:latest
+
+WORKDIR /app
+
+COPY deploy/app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
+
+COPY deploy/app/main.py .
+COPY marketing-intern ./marketing-intern
+
+# OpenShift-compatible: allow arbitrary UID to read app dir
+RUN chgrp -R 0 /app && chmod -R g=u /app
+
+USER 1001
+
+EXPOSE 8080
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

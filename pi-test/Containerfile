@@ -1,0 +1,33 @@
+# Containerfile:
+# ─────────────────────────────────────────────────────────────────────────────
+# pi-agent container image
+# Build:  podman build -t pi-agent:latest -f Containerfile .
+# Run:    podman run --rm -it -e OPENAI_API_KEY=mykey pi-agent:latest
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM registry.redhat.io/ubi9/nodejs-20-minimal
+
+# ── 1. Install system dependencies ───────────────────────────────────────────
+# mode and the cache is not committed into the image layer.
+USER root
+RUN microdnf install -y gzip && \
+    microdnf clean all
+USER 1001
+
+# ── 2. Install pi.dev agent packages ─────────────────────────────────────────
+RUN npm install -g \
+        @mariozechner/pi-agent-core \
+        @mariozechner/pi-ai \
+        @mariozechner/pi-coding-agent && \
+    npm cache clean --force
+
+# ── 3. Environment ────────────────────────────────────────────────────────────
+RUN mkdir agent inbox outbox
+ENV PATH="/root/.local/bin:$PATH"
+
+# ── 4. Default entrypoint ─────────────────────────────────────────────────────
+ENTRYPOINT ["pi"]
+CMD ["-p", "Please read the instruction in the folder ./agent and process all the files in the folder ./inbox and write the results to ./outbox"]
+
+###
+

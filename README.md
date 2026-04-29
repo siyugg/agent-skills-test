@@ -29,18 +29,29 @@ Open http://localhost:8080 — health check: http://localhost:8080/health
 
 ### Deploy on OpenShift
 
-1. Create a project (namespace), e.g. `marketing-intern`.
-2. Push the image to your cluster registry (or use `oc new-build --binary` with the same `Containerfile`).
-3. Apply manifests from `openshift/` after setting the image reference in `deployment.yaml` to your image pull spec.
+1. **Project**
 
-```bash
-oc apply -k openshift/
-```
+   ```bash
+   oc new-project marketing-intern
+   ```
 
-If you do not use Kustomize, apply files individually:
+2. **Image** — build the image, push it to a registry your cluster can pull from (often the OpenShift internal registry), then align `images.newName` / `images.newTag` in `openshift/kustomization.yaml` with that pull spec. Example:
 
-```bash
-oc apply -f openshift/deployment.yaml -f openshift/service.yaml -f openshift/route.yaml
-```
+   ```bash
+   podman build -f deploy/Containerfile -t marketing-intern:latest .
+   # oc registry login … ; podman tag … ; podman push …  (per your cluster docs)
+   ```
 
-Adjust `Route` host or TLS as required by your cluster.
+3. **Apply**
+
+   ```bash
+   oc apply -k openshift/
+   ```
+
+   Without Kustomize:
+
+   ```bash
+   oc apply -f openshift/deployment.yaml -f openshift/service.yaml -f openshift/route.yaml -n marketing-intern
+   ```
+
+4. **Route** — `oc get route marketing-intern -n marketing-intern`, then open the HTTPS URL. Edge TLS is enabled in `openshift/route.yaml`; adjust `host` or TLS if your cluster requires it.

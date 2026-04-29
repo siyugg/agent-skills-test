@@ -6,8 +6,7 @@ FROM registry.redhat.io/ubi9/python-311:latest
 WORKDIR /app
 
 COPY deploy/app/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY deploy/app/main.py .
 COPY marketing-intern ./marketing-intern

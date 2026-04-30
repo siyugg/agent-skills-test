@@ -70,6 +70,7 @@
     .inbox-panel { flex: 1.1; min-height: 180px; border-radius: var(--radius-lg); }
     .chat-panel { flex: 0.95; min-height: 220px; }
     .skills-panel { border-radius: var(--radius); max-height: min(88vh, 920px); }
+    .skills-panel .panel-body { min-height: 140px; }
     .output-panel { border-radius: var(--radius-lg); max-height: min(88vh, 920px); }
     .panel-head {
       padding: 0.85rem 1rem;
@@ -166,6 +167,15 @@
       color: var(--muted);
       margin-bottom: 0.2rem;
     }
+    .chat-conn {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin: 0.45rem 0 0;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .chat-conn.ok { color: #2e7d32; }
+    .chat-conn.warn { color: #e65100; }
     .chat-input-row { display: flex; gap: 0.5rem; align-items: flex-end; }
     #chat-input {
       flex: 1;
@@ -203,6 +213,22 @@
       border-bottom: 1px solid var(--border);
     }
     .skill-row:last-child { border-bottom: none; }
+    .skill-row-static {
+      padding-left: 0.35rem;
+      opacity: 0.92;
+    }
+    .skill-static-tag {
+      flex-shrink: 0;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: rgba(21, 101, 192, 0.08);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      margin-right: 0.35rem;
+    }
     .skill-row input {
       margin-top: 0.25rem;
       width: 1rem;
@@ -338,7 +364,8 @@
         <section class="panel chat-panel" aria-labelledby="lbl-chat">
           <div class="panel-head">
             <h2 id="lbl-chat">Chat</h2>
-            <p>Natural language → categorized into inbox files. Set <code>CHAT_COMPLETIONS_URL</code> for Qwen.</p>
+            <p>Natural language → categorized into inbox files. Uses OpenShift AI / Qwen when <code>CHAT_COMPLETIONS_URL</code> is set.</p>
+            <p class="chat-conn" id="chat-conn-status"></p>
           </div>
           <div class="panel-body" style="display:flex;flex-direction:column;">
             <div id="chat-log" aria-live="polite"></div>
@@ -352,8 +379,8 @@
 
       <section class="panel skills-panel" aria-labelledby="lbl-skills">
         <div class="panel-head">
-          <h2 id="lbl-skills">Skills</h2>
-          <p>Pi skills staged into <code>agent/</code></p>
+            <h2 id="lbl-skills">Skills</h2>
+            <p>Checkboxes control <code>skill_*.md</code> files; other <code>agent/*.md</code> files are always included in runs.</p>
         </div>
         <div class="panel-body" id="skills-root"></div>
       </section>
@@ -418,22 +445,36 @@
 
     function renderSkills(skills) {
       const root = document.getElementById("skills-root");
+      const selectable = skills.filter((s) => s.selectable !== false);
       let selected = loadSelection();
-      if (!selected) selected = new Set(skills.map((s) => s.id));
+      if (!selected) selected = new Set(selectable.map((s) => s.id));
       root.innerHTML = skills.length
         ? skills.map((s) => {
+            const isSel = s.selectable !== false;
+            if (!isSel) {
+              return (
+                '<div class="skill-row skill-row-static" data-skill-id="' + esc(s.id) + '" data-selectable="0">' +
+                '<span class="skill-static-tag">always</span>' +
+                '<div><span class="skill-title">' + esc(s.title) + "</span>" +
+                '<span class="skill-excerpt">' + esc(s.filename || "") + " — " + esc(s.excerpt || "") + "</span></div></div>"
+              );
+            }
             const checked = selected.has(s.id);
-            return '<div class="skill-row" data-skill-id="' + esc(s.id) + '">' +
-              '<input type="checkbox" id="sk-' + esc(s.id) + '"' + (checked ? " checked" : "") + ' />' +
+            return (
+              '<div class="skill-row" data-skill-id="' + esc(s.id) + '" data-selectable="1">' +
+              '<input type="checkbox" id="sk-' + esc(s.id) + '"' + (checked ? " checked" : "") + " />" +
               '<label for="sk-' + esc(s.id) + '"><span class="skill-title">' + esc(s.title) + "</span>" +
-              '<span class="skill-excerpt">' + esc(s.excerpt || "") + "</span></label></div>";
+              '<span class="skill-excerpt">' + esc(s.excerpt || "") + "</span></label></div>"
+            );
           }).join("")
-        : '<p class="empty">No skill files.</p>';
-      root.querySelectorAll(".skill-row input").forEach((inp) => {
+        : '<p class="empty">No markdown files in <code>agent/</code>.</p>';
+      root.querySelectorAll(".skill-row[data-selectable=\"1\"] input").forEach((inp) => {
         inp.addEventListener("change", () => {
-          const set = new Set([...root.querySelectorAll(".skill-row input")]
-            .filter((x) => x.checked)
-            .map((x) => x.closest(".skill-row").getAttribute("data-skill-id")));
+          const set = new Set(
+            [...root.querySelectorAll(".skill-row[data-selectable=\"1\"] input")]
+              .filter((x) => x.checked)
+              .map((x) => x.closest(".skill-row").getAttribute("data-skill-id"))
+          );
           saveSelection(set);
         });
       });
@@ -525,10 +566,31 @@
     }
 
     function selectedSkillIds() {
-      return [...document.querySelectorAll("#skills-root .skill-row input")]
+      return [...document.querySelectorAll("#skills-root .skill-row[data-selectable=\"1\"] input")]
         .filter((x) => x.checked)
         .map((x) => x.closest(".skill-row").getAttribute("data-skill-id"))
         .filter(Boolean);
+    }
+
+    function updateChatConn(cfg) {
+      const el = document.getElementById("chat-conn-status");
+      if (!el || !cfg) return;
+      el.classList.remove("ok", "warn");
+      if (cfg.chat_completions_configured) {
+        el.classList.add("ok");
+        var host = cfg.chat_completion_url ? String(cfg.chat_completion_url) : "";
+        if (host.indexOf("https://") === 0) host = host.slice(8);
+        else if (host.indexOf("http://") === 0) host = host.slice(7);
+        el.textContent = "Chat: connected to model (" + (host || "endpoint") + ").";
+      } else if (cfg.chat_completion_url) {
+        el.classList.add("warn");
+        el.textContent =
+          "Chat: URL is set but auth is missing — add CHAT_API_KEY or OPENAI_K8S_SECRET_NAME / OPENAI_API_KEY, or set CHAT_ALLOW_NO_AUTH=1.";
+      } else {
+        el.classList.add("warn");
+        el.textContent =
+          "Chat: not configured — set CHAT_COMPLETIONS_URL to your Qwen OpenAI endpoint (…/v1/chat/completions), CHAT_MODEL, and CHAT_API_KEY (unless CHAT_ALLOW_NO_AUTH=1).";
+      }
     }
 
     function renderRunOutbox(data) {
@@ -610,20 +672,48 @@
 
     (async function init() {
       const status = document.getElementById("load-status");
+      const errs = [];
       try {
-        const [cfg, skills, inbox, outbox] = await Promise.all([
-          fetchJson("/api/config"),
-          fetchJson("/api/skills"),
-          fetchJson("/api/inbox"),
-          fetchJson("/api/outbox"),
-        ]);
+        const cfg = await fetchJson("/api/config");
         lastConfig = cfg;
-        bundleInbox = inbox;
+        updateChatConn(cfg);
+      } catch (e) {
+        errs.push("config: " + (e.message || e));
+        var cc = document.getElementById("chat-conn-status");
+        if (cc) {
+          cc.classList.add("warn");
+          cc.textContent = "Chat: /api/config failed — cannot show connection status.";
+        }
+      }
+      try {
+        const skills = await fetchJson("/api/skills");
         renderSkills(skills);
+      } catch (e) {
+        document.getElementById("skills-root").innerHTML =
+          '<p class="empty">Could not load skills: ' + esc(e.message || String(e)) + "</p>";
+        errs.push("skills: " + (e.message || e));
+      }
+      try {
+        const inbox = await fetchJson("/api/inbox");
+        bundleInbox = inbox;
         renderInboxEditors(inbox);
+      } catch (e) {
+        document.getElementById("inbox-root").innerHTML =
+          '<p class="empty">Could not load inbox: ' + esc(e.message || String(e)) + "</p>";
+        errs.push("inbox: " + (e.message || e));
+      }
+      try {
+        const outbox = await fetchJson("/api/outbox");
         renderBundleOutbox(outbox);
-        renderRunOutbox({ files: [] });
-        updateGenerateEnabled();
+      } catch (e) {
+        document.getElementById("bundle-outbox-root").innerHTML =
+          '<p class="empty">Could not load bundle outbox: ' + esc(e.message || String(e)) + "</p>";
+        errs.push("outbox: " + (e.message || e));
+      }
+      renderRunOutbox({ files: [] });
+      if (lastConfig) updateGenerateEnabled();
+      const cfg = lastConfig || {};
+      if (cfg && Object.keys(cfg).length) {
         if (!cfg.generate_backend_ready) {
           if (cfg.exec_mode === "openshift-job")
             showError("Job mode unavailable (check in-cluster API / RBAC).");
@@ -632,21 +722,25 @@
           showError("Configure OPENAI_API_KEY or OPENAI_K8S_SECRET_NAME for the agent.");
         }
         status.textContent =
-          "Loaded · " + cfg.exec_mode + " · " + cfg.pi_agent_image +
-          (cfg.chat_completions_configured ? " · chat API" : " · chat fallback") +
-          (cfg.generate_backend_ready && cfg.openai_configured ? " · agent ready" : " · check agent config");
-        document.getElementById("btn-reset-inbox").addEventListener("click", () => renderInboxEditors(bundleInbox));
-        document.getElementById("btn-generate").addEventListener("click", runGenerate);
-        document.getElementById("btn-chat-send").addEventListener("click", sendChat);
-        document.getElementById("chat-input").addEventListener("keydown", (ev) => {
-          if (ev.key === "Enter" && !ev.shiftKey) {
-            ev.preventDefault();
-            sendChat();
-          }
-        });
-      } catch (e) {
-        status.textContent = "Load error: " + (e && e.message ? e.message : String(e));
+          "Loaded · " +
+          cfg.exec_mode +
+          " · " +
+          cfg.pi_agent_image +
+          (cfg.chat_completions_configured ? " · chat API" : " · chat not wired") +
+          (cfg.generate_backend_ready && cfg.openai_configured ? " · agent ready" : " · check agent config") +
+          (errs.length ? " · errors: " + errs.join("; ") : "");
+      } else {
+        status.textContent = errs.length ? "Partial load · " + errs.join("; ") : "Loaded.";
       }
+      document.getElementById("btn-reset-inbox").addEventListener("click", () => renderInboxEditors(bundleInbox));
+      document.getElementById("btn-generate").addEventListener("click", runGenerate);
+      document.getElementById("btn-chat-send").addEventListener("click", sendChat);
+      document.getElementById("chat-input").addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" && !ev.shiftKey) {
+          ev.preventDefault();
+          sendChat();
+        }
+      });
     })();
   </script>
 </body>

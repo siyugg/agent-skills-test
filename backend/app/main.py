@@ -157,9 +157,8 @@ def api_config() -> dict[str, Any]:
         "exec_mode": mode,
         "openshift_job_available": openshift_job_available(),
         "generate_backend_ready": _generate_backend_ready(),
-        "chat_completions_configured": bool(
-            _chat_completions_url() and _chat_api_key()
-        ),
+        "chat_completions_configured": _chat_ready(),
+        "chat_completion_url": _chat_completions_url() or None,
     }
 
 
@@ -168,10 +167,12 @@ def api_skills() -> JSONResponse:
     agent_dir = BASE / "agent"
     if not agent_dir.is_dir():
         return JSONResponse([])
-    items: list[dict[str, str]] = []
-    for f in sorted(agent_dir.glob("skill_*.md")):
+    items: list[dict[str, Any]] = []
+    # Every markdown file in agent/ is listed; only skill_*.md are toggles for staging (others always ship).
+    for f in sorted(agent_dir.glob("*.md")):
         raw = f.read_text(encoding="utf-8")
         title, excerpt = _md_title_and_excerpt(raw)
+        selectable = f.name.startswith("skill_")
         items.append(
             {
                 "id": f.stem,
@@ -179,6 +180,7 @@ def api_skills() -> JSONResponse:
                 "title": title,
                 "excerpt": excerpt,
                 "content": raw,
+                "selectable": selectable,
             }
         )
     return JSONResponse(items)
@@ -420,11 +422,29 @@ def _chat_completions_url() -> str:
     return os.environ.get("CHAT_COMPLETIONS_URL", "").strip()
 
 
+def _chat_allow_no_auth() -> bool:
+    return os.environ.get("CHAT_ALLOW_NO_AUTH", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def _chat_api_key() -> str | None:
     k = os.environ.get("CHAT_API_KEY", "").strip()
     if k:
         return k
     return _read_api_key()
+
+
+def _chat_ready() -> bool:
+    """True when chat can call the completions endpoint (URL + optional Bearer rules)."""
+    if not _chat_completions_url():
+        return False
+    if _chat_api_key() or _chat_allow_no_auth():
+        return True
+    return False
 
 
 def _inbox_filenames() -> list[str]:
@@ -440,8 +460,12 @@ def _call_openai_compatible_chat(messages: list[dict[str, str]]) -> str:
 
     url = _chat_completions_url()
     key = _chat_api_key()
-    if not url or not key:
-        raise ValueError("CHAT_COMPLETIONS_URL or API key not configured")
+    if not url:
+        raise ValueError("CHAT_COMPLETIONS_URL is not set")
+    if not key and not _chat_allow_no_auth():
+        raise ValueError(
+            "Set CHAT_API_KEY (or rely on OPENAI_API_KEY), or set CHAT_ALLOW_NO_AUTH=1 for endpoints that do not require a Bearer token"
+        )
     model = os.environ.get("CHAT_MODEL", "qwen").strip()
     payload = json.dumps(
         {
@@ -450,13 +474,13 @@ def _call_openai_compatible_chat(messages: list[dict[str, str]]) -> str:
             "temperature": float(os.environ.get("CHAT_TEMPERATURE", "0.3")),
         }
     ).encode()
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
     req = urllib.request.Request(
         url,
         data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {key}",
-        },
+        headers=headers,
         method="POST",
     )
     try:
@@ -530,7 +554,7 @@ async def api_chat(body: ChatBody) -> JSONResponse:
     reply_text = ""
     patches: list[dict[str, Any]] = []
 
-    if _chat_completions_url() and _chat_api_key():
+    if _chat_ready():
         try:
             raw = await asyncio.to_thread(_call_openai_compatible_chat, messages_ch)
             reply_text, patches = _parse_chat_json(raw)

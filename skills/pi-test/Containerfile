@@ -1,7 +1,8 @@
 # Containerfile:
 # ─────────────────────────────────────────────────────────────────────────────
 # pi-agent container image
-# Build:  podman build -t pi-agent:latest -f Containerfile .
+# Build from repo root:  podman build -t pi-agent:latest -f skills/pi-test/Containerfile .
+# Or from this directory: podman build -t pi-agent:latest -f Containerfile .
 # Run:    podman run --rm -it -e OPENAI_API_KEY=mykey pi-agent:latest
 # ─────────────────────────────────────────────────────────────────────────────
 

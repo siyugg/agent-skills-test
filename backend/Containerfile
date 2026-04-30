@@ -1,17 +1,18 @@
 # Build from repository root:
-#   podman build -f deploy/Containerfile -t marketing-intern:latest .
+#   podman build -f backend/Containerfile -t marketing-intern:latest .
 
 FROM registry.redhat.io/ubi9/python-311:latest
 
 WORKDIR /app
 
-COPY deploy/app/requirements.txt .
+COPY backend/app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY deploy/app/main.py .
-COPY marketing-intern ./marketing-intern
+COPY backend/app/main.py .
+COPY backend/app/k8s_pi_job.py .
+COPY frontend ./frontend
+COPY skills/marketing-intern ./skills/marketing-intern
 
-# OpenShift-compatible: group root (0) readable for arbitrary UID
 USER root
 RUN chgrp -R 0 /app && chmod -R g=u /app
 

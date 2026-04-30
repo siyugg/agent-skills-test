@@ -1,22 +1,24 @@
 # Agent skills test
 
-Version-controlled skill bundles for agent workflows (inbox / agent / outbox layout).
+Version-controlled skill bundles for agent workflows (inbox / agent / outbox layout) and a small **marketing intern** web app (FastAPI) on OpenShift.
 
-## Layout
+## Repository layout
 
-- `marketing-intern/` — campaign and event marketing materials agent
-- `pi-test/` — sample pi.dev-style agent layout with `Containerfile`
+| Path | Purpose |
+|------|--------|
+| `backend/app/` | Python API (`main.py`, `k8s_pi_job.py`), `requirements.txt` |
+| `frontend/` | Web UI (`index.html` loaded at startup — edit here for layout/CSS/JS) |
+| `skills/marketing-intern/` | Default bundle: `agent/`, `inbox/`, `outbox/` markdown for the demo agent |
+| `skills/pi-test/` | Sample pi-style bundle + optional pi-agent `Containerfile` |
+| `openshift/` | Deployment, Service, Route, RBAC samples |
+| `scripts/` | Helpers (`rebuild-marketing-intern-openshift.sh`, Quay mirror, etc.) |
 
-## Marketing intern — OpenShift
+## Marketing intern — build image
 
-The `deploy/` directory builds a small read-only web UI that lists and serves the `marketing-intern` markdown bundle (for demos and internal review).
-
-### Build image
-
-From this repository root:
+From the **repository root**:
 
 ```bash
-podman build -f deploy/Containerfile -t marketing-intern:latest .
+podman build -f backend/Containerfile -t marketing-intern:latest .
 ```
 
 ### Run locally
@@ -25,33 +27,37 @@ podman build -f deploy/Containerfile -t marketing-intern:latest .
 podman run --rm -p 8080:8080 marketing-intern:latest
 ```
 
-Open http://localhost:8080 — health check: http://localhost:8080/health
+Open http://localhost:8080 — health: http://localhost:8080/health
 
-### Deploy on OpenShift
+## OpenShift binary build + rollout
 
-1. **Project**
+After changing `backend/`, `frontend/`, or `skills/marketing-intern/`, use:
 
-   ```bash
-   oc new-project marketing-intern
-   ```
+```bash
+./scripts/rebuild-marketing-intern-openshift.sh
+```
 
-2. **Image** — build the image, push it to a registry your cluster can pull from (often the OpenShift internal registry), then align `images.newName` / `images.newTag` in `openshift/kustomization.yaml` with that pull spec. Example:
+The BuildConfig must build with **`dockerfilePath: backend/Containerfile`** (not `deploy/…`). If your cluster still points at the old path, patch once:
 
-   ```bash
-   podman build -f deploy/Containerfile -t marketing-intern:latest .
-   # oc registry login … ; podman tag … ; podman push …  (per your cluster docs)
-   ```
+```bash
+oc patch bc marketing-intern -n marketing-intern --type=json \
+  -p '[{"op":"replace","path":"/spec/strategy/dockerStrategy/dockerfilePath","value":"backend/Containerfile"}]'
+```
 
-3. **Apply**
+Then apply manifests as needed:
 
-   ```bash
-   oc apply -k openshift/
-   ```
+```bash
+oc apply -k openshift/
+```
 
-   Without Kustomize:
+Route: `oc get route marketing-intern -n marketing-intern`
 
-   ```bash
-   oc apply -f openshift/deployment.yaml -f openshift/service.yaml -f openshift/route.yaml -n marketing-intern
-   ```
+## pi-agent image (optional)
 
-4. **Route** — `oc get route marketing-intern -n marketing-intern`, then open the HTTPS URL. Edge TLS is enabled in `openshift/route.yaml`; adjust `host` or TLS if your cluster requires it.
+From repo root:
+
+```bash
+podman build -t pi-agent:latest -f skills/pi-test/Containerfile .
+```
+
+Or from `skills/pi-test/` using that directory as context (see comments in `skills/pi-test/Containerfile`).

@@ -29,20 +29,24 @@ podman run --rm -p 8080:8080 marketing-intern:latest
 
 Open http://localhost:8080 — health: http://localhost:8080/health
 
-## Chat (Qwen / OpenShift AI)
+## Chat (Qwen) vs Run agent (OpenAI)
 
-The UI chat panel calls your model using an **OpenAI-compatible** `POST …/v1/chat/completions` API (same JSON schema). Typical wiring:
+Two separate integrations:
 
-1. **Route URL** — From OpenShift AI / KServe / your serving stack, take the public HTTPS URL for the inference service and append **`/v1/chat/completions`** (many stacks expose this path; confirm with your model’s documentation).
-2. **Deployment env** (see `openshift/deployment.yaml`):
-   - **`CHAT_COMPLETIONS_URL`** — full URL to the completions endpoint (required for live chat).
-   - **`CHAT_MODEL`** — model id your server expects (often matches the CR name for Qwen; leave unset to default `qwen`).
-   - **`CHAT_API_KEY`** — Bearer token if required (store in a Secret and reference it from the Deployment).
-   - **`CHAT_ALLOW_NO_AUTH`** — set to `1` only if the endpoint does not require an `Authorization` header.
+| Step | Model / API | Env vars | What it does |
+|------|-------------|----------|----------------|
+| **Chat** | **Qwen** (OpenShift AI or any OpenAI-compatible `POST …/v1/chat/completions`) | **`CHAT_*` only** — never `OPENAI_*` | Converses with the user and **writes into `inbox/*.md`** via JSON patches from the model. |
+| **Run agent** | **OpenAI API** | **`OPENAI_API_KEY`** / **`OPENAI_K8S_SECRET_NAME`** | Runs the pi-agent Job with the inbox + skills you prepared in chat. |
 
-If `OPENAI_API_KEY` or your existing OpenAI Secret is already set, the app can reuse that as the Bearer token for chat when **`CHAT_API_KEY`** is not set.
+Chat does **not** read or send your OpenAI key. Configure Qwen with **`CHAT_COMPLETIONS_URL`**, **`CHAT_MODEL`**, and **`CHAT_API_KEY`** (or **`CHAT_ALLOW_NO_AUTH=1`** when allowed).
 
-After changing env vars: `oc apply -f openshift/deployment.yaml` (or edit the Deployment) and wait for the pod to restart.
+**Qwen / chat wiring**
+
+1. **URL** — HTTPS Route to your inference service + **`/v1/chat/completions`** (confirm with your OpenShift AI / KServe docs).
+2. **Env** (see `openshift/deployment.yaml`):
+   - **`CHAT_COMPLETIONS_URL`**, **`CHAT_MODEL`**, optional **`CHAT_API_KEY`**, or **`CHAT_ALLOW_NO_AUTH=1`**.
+
+After changing env vars, apply the Deployment and roll the pod.
 
 ## OpenShift binary build + rollout
 

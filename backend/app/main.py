@@ -159,6 +159,9 @@ def api_config() -> dict[str, Any]:
         "generate_backend_ready": _generate_backend_ready(),
         "chat_completions_configured": _chat_ready(),
         "chat_completion_url": _chat_completions_url() or None,
+        "chat_model": (os.environ.get("CHAT_MODEL", "") or "qwen").strip(),
+        # Chat uses only CHAT_* + Qwen; Run agent uses OPENAI_* only.
+        "chat_uses_openai_credentials": False,
     }
 
 
@@ -432,10 +435,9 @@ def _chat_allow_no_auth() -> bool:
 
 
 def _chat_api_key() -> str | None:
+    """Bearer token for Qwen / chat only. Do not use the OpenAI agent key here."""
     k = os.environ.get("CHAT_API_KEY", "").strip()
-    if k:
-        return k
-    return _read_api_key()
+    return k or None
 
 
 def _chat_ready() -> bool:
@@ -454,7 +456,7 @@ def _inbox_filenames() -> list[str]:
     return sorted([f.name for f in d.iterdir() if f.is_file()])
 
 
-def _call_openai_compatible_chat(messages: list[dict[str, str]]) -> str:
+def _call_qwen_chat_completions(messages: list[dict[str, str]]) -> str:
     import urllib.error
     import urllib.request
 
@@ -464,9 +466,9 @@ def _call_openai_compatible_chat(messages: list[dict[str, str]]) -> str:
         raise ValueError("CHAT_COMPLETIONS_URL is not set")
     if not key and not _chat_allow_no_auth():
         raise ValueError(
-            "Set CHAT_API_KEY (or rely on OPENAI_API_KEY), or set CHAT_ALLOW_NO_AUTH=1 for endpoints that do not require a Bearer token"
+            "Set CHAT_API_KEY for Qwen chat, or CHAT_ALLOW_NO_AUTH=1 if the completions endpoint needs no Bearer token"
         )
-    model = os.environ.get("CHAT_MODEL", "qwen").strip()
+    model = (os.environ.get("CHAT_MODEL", "") or "qwen").strip()
     payload = json.dumps(
         {
             "model": model,
@@ -496,12 +498,7 @@ def _call_openai_compatible_chat(messages: list[dict[str, str]]) -> str:
 
 
 def _parse_chat_json(raw: str) -> tuple[str, list[dict[str, Any]]]:
-    t = raw.strip()
-    if t.startswith("```"):
-        t = re.sub(r"^```\w*\s*", "", t)
-        t = re.sub(r"\s*```\s*$", "", t)
-    try:
-        parsed = json.loads(t)
+    def _from_parsed(parsed: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         reply = str(parsed.get("reply", raw))
         patches_raw = parsed.get("patches") or []
         patches: list[dict[str, Any]] = []
@@ -509,15 +506,38 @@ def _parse_chat_json(raw: str) -> tuple[str, list[dict[str, Any]]]:
             if isinstance(p, dict) and p.get("name"):
                 patches.append({"name": str(p["name"]), "append": str(p.get("append", ""))})
         return reply, patches
+
+    t = raw.strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```\w*\s*", "", t)
+        t = re.sub(r"\s*```\s*$", "", t)
+    try:
+        top = json.loads(t)
+        if isinstance(top, dict) and "reply" in top:
+            return _from_parsed(top)
     except json.JSONDecodeError:
-        return raw, []
+        pass
+    dec = json.JSONDecoder()
+    i = 0
+    while i < len(raw):
+        j = raw.find("{", i)
+        if j < 0:
+            break
+        try:
+            obj, _end = dec.raw_decode(raw, j)
+            if isinstance(obj, dict) and "reply" in obj:
+                return _from_parsed(obj)
+        except json.JSONDecodeError:
+            pass
+        i = j + 1
+    return raw, []
 
 
 def _fallback_chat_response(user_msg: str, inbox_names: list[str]) -> tuple[str, list[dict[str, str]]]:
     reply = (
-        "Configure **CHAT_COMPLETIONS_URL** (OpenAI-compatible `/v1/chat/completions` for Qwen on OpenShift AI) "
-        "and **CHAT_API_KEY** (or rely on OPENAI_API_KEY). "
-        "Until then, your message is appended to the primary inbox file as a demo."
+        "Chat uses **Qwen** via **CHAT_COMPLETIONS_URL** (and **CHAT_API_KEY** or **CHAT_ALLOW_NO_AUTH**). "
+        "That is separate from **Run agent**, which uses the **OpenAI API**. "
+        "Until Qwen chat is configured, your message is appended to an inbox file as a demo only."
     )
     target = ""
     if "campaign_brief.md" in inbox_names:
@@ -537,13 +557,17 @@ async def api_chat(body: ChatBody) -> JSONResponse:
         raise HTTPException(status_code=400, detail="empty message")
     inbox_names = _inbox_filenames()
     sys_prompt = (
-        "You help organize marketing requirements. Inbox markdown files: "
+        "You are the **intake assistant** (Qwen). You ONLY help gather requirements into inbox markdown files. "
+        "You do NOT run the downstream marketing agent — that is a separate step when the user clicks Run agent.\n\n"
+        "Inbox files available (exact names): "
         + ", ".join(inbox_names or ["(none)"])
-        + ". Reply with a JSON object ONLY (no markdown code fences): "
-        '{"reply":"<assistant message; ask a follow-up if information is insufficient>",'
-        '"patches":[{"name":"exact-filename.md","append":"text to append to that file"}]}. '
-        "Put facts in the best-matching file (e.g. dates in event_details.md). "
-        "If unclear, ask in reply and use minimal patches."
+        + ".\n\n"
+        "For each user message: (1) reply briefly and naturally in `reply`; (2) in `patches`, append markdown fragments "
+        "to the **exact filenames above** so structured notes land in the right file (dates/venue → event_details.md, "
+        "audience → target_audience.md, campaign narrative → campaign_brief.md, etc.). Use bullets and headings in "
+        "`append` text. If you need more detail, ask in `reply` and use [] for patches.\n\n"
+        "Output **one JSON object only**, no markdown fences, no text before or after the JSON:\n"
+        '{"reply":"<string>","patches":[{"name":"filename.md","append":"<markdown to append>"}]}'
     )
     messages_ch: list[dict[str, str]] = [{"role": "system", "content": sys_prompt}]
     for h in body.history[-16:]:
@@ -556,7 +580,7 @@ async def api_chat(body: ChatBody) -> JSONResponse:
 
     if _chat_ready():
         try:
-            raw = await asyncio.to_thread(_call_openai_compatible_chat, messages_ch)
+            raw = await asyncio.to_thread(_call_qwen_chat_completions, messages_ch)
             reply_text, patches = _parse_chat_json(raw)
         except ValueError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e

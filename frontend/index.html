@@ -348,7 +348,7 @@
   <div class="wrap">
     <header class="topbar">
       <h1>Marketing Intern Agent</h1>
-      <p>Inbox + chat (Qwen on OpenShift AI when configured) · Skills · Output</p>
+      <p><strong>Chat</strong> (Qwen) fills <code>inbox/</code> · <strong>Run agent</strong> uses OpenAI API · Skills · Output</p>
     </header>
 
     <div class="dashboard">
@@ -356,7 +356,7 @@
         <section class="panel inbox-panel" aria-labelledby="lbl-inbox">
           <div class="panel-head">
             <h2 id="lbl-inbox">Inbox requirements</h2>
-            <p>One collapsible section per inbox file. Chat patches merge here in real time.</p>
+            <p>One section per inbox file. Qwen chat appends structured notes here; refine then run the agent.</p>
           </div>
           <div class="panel-body" id="inbox-root"></div>
         </section>
@@ -364,7 +364,7 @@
         <section class="panel chat-panel" aria-labelledby="lbl-chat">
           <div class="panel-head">
             <h2 id="lbl-chat">Chat</h2>
-            <p>Natural language → categorized into inbox files. Uses OpenShift AI / Qwen when <code>CHAT_COMPLETIONS_URL</code> is set.</p>
+            <p>Talk with <strong>Qwen</strong> — it turns your messages into markdown patches under <code>inbox/</code>. Uses <code>CHAT_*</code> env vars only (not OpenAI).</p>
             <p class="chat-conn" id="chat-conn-status"></p>
           </div>
           <div class="panel-body" style="display:flex;flex-direction:column;">
@@ -388,12 +388,12 @@
       <section class="panel output-panel" aria-labelledby="lbl-out">
         <div class="panel-head">
           <h2 id="lbl-out">Output</h2>
-          <p>Agent run results — sections start collapsed.</p>
+          <p>Agent run results — sections start collapsed. <strong>Run agent</strong> calls the pi-agent job with your <strong>OpenAI API</strong> credentials.</p>
         </div>
         <div class="panel-body">
           <div class="err-box" id="gen-error"></div>
           <div class="toolbar">
-            <button type="button" class="btn" id="btn-generate" disabled>Run agent</button>
+            <button type="button" class="btn" id="btn-generate" disabled>Run agent (OpenAI)</button>
             <button type="button" class="btn btn-secondary" id="btn-reset-inbox">Reset inbox</button>
           </div>
           <div class="gen-meta" id="gen-meta"></div>
@@ -581,15 +581,20 @@
         var host = cfg.chat_completion_url ? String(cfg.chat_completion_url) : "";
         if (host.indexOf("https://") === 0) host = host.slice(8);
         else if (host.indexOf("http://") === 0) host = host.slice(7);
-        el.textContent = "Chat: connected to model (" + (host || "endpoint") + ").";
+        el.textContent =
+          "Qwen chat: connected (" +
+          (host || "endpoint") +
+          ")" +
+          (cfg.chat_model ? " · model " + cfg.chat_model : "") +
+          ". Run agent (OpenAI) uses your OPENAI secret separately.";
       } else if (cfg.chat_completion_url) {
         el.classList.add("warn");
         el.textContent =
-          "Chat: URL is set but auth is missing — add CHAT_API_KEY or OPENAI_K8S_SECRET_NAME / OPENAI_API_KEY, or set CHAT_ALLOW_NO_AUTH=1.";
+          "Chat (Qwen): URL set — add CHAT_API_KEY or set CHAT_ALLOW_NO_AUTH=1. Chat does not use OpenAI keys.";
       } else {
         el.classList.add("warn");
         el.textContent =
-          "Chat: not configured — set CHAT_COMPLETIONS_URL to your Qwen OpenAI endpoint (…/v1/chat/completions), CHAT_MODEL, and CHAT_API_KEY (unless CHAT_ALLOW_NO_AUTH=1).";
+          "Chat (Qwen): set CHAT_COMPLETIONS_URL (…/v1/chat/completions), CHAT_MODEL, and CHAT_API_KEY unless CHAT_ALLOW_NO_AUTH=1.";
       }
     }
 
@@ -659,7 +664,7 @@
           if (parsed.stderr) showLogs(parsed.stderr + (parsed.stdout ? "\n" + parsed.stdout : ""), true);
         } catch (_) {}
       } finally {
-        btn.textContent = "Run agent";
+        btn.textContent = "Run agent (OpenAI)";
         updateGenerateEnabled();
       }
     }
@@ -719,15 +724,15 @@
             showError("Job mode unavailable (check in-cluster API / RBAC).");
           else showError("Set AGENT_EXEC_MODE=openshift-job on OpenShift.");
         } else if (!cfg.openai_configured) {
-          showError("Configure OPENAI_API_KEY or OPENAI_K8S_SECRET_NAME for the agent.");
+          showError("Configure OPENAI_API_KEY or OPENAI_K8S_SECRET_NAME for Run agent (OpenAI) — not used for Qwen chat.");
         }
         status.textContent =
           "Loaded · " +
           cfg.exec_mode +
           " · " +
           cfg.pi_agent_image +
-          (cfg.chat_completions_configured ? " · chat API" : " · chat not wired") +
-          (cfg.generate_backend_ready && cfg.openai_configured ? " · agent ready" : " · check agent config") +
+          (cfg.chat_completions_configured ? " · Qwen chat OK" : " · Qwen chat not wired") +
+          (cfg.generate_backend_ready && cfg.openai_configured ? " · OpenAI agent ready" : " · set OpenAI for Run agent") +
           (errs.length ? " · errors: " + errs.join("; ") : "");
       } else {
         status.textContent = errs.length ? "Partial load · " + errs.join("; ") : "Loaded.";

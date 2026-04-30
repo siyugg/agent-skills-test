@@ -27,7 +27,7 @@ spec:
                   fieldPath: metadata.namespace
             - name: AGENT_EXEC_MODE
               value: openshift-job
-            # Pi-agent Job pods receive OPENAI_API_KEY from this Secret (same namespace).
+            # Run agent (pi-agent Job) — OpenAI API only. Not used for Qwen chat.
             - name: OPENAI_K8S_SECRET_NAME
               value: openai-api-calling
             - name: OPENAI_K8S_SECRET_KEY
@@ -38,19 +38,19 @@ spec:
               value: quay.io/rh-ee-gsiyu/agent-skills:latest
             - name: PI_AGENT_IMAGE_PULL_POLICY
               value: Always
-            # Qwen / OpenShift AI — OpenAI-compatible chat completions (same schema as OpenAI).
-            # Set the HTTPS Route of your inference service + path /v1/chat/completions
-            # (KServe/vLLM/TGIS often expose this). CHAT_MODEL must match the served model id.
+            # Qwen chat — fills inbox/ via CHAT_* only (does not use OPENAI_*).
+            # Route is the OpenShift AI / inference HTTPS URL; path must be /v1/chat/completions (OpenAI-compatible).
             - name: CHAT_COMPLETIONS_URL
               value: ""
+            # Must match the model id your InferenceService / serving runtime expects (e.g. qwen3-8b).
             - name: CHAT_MODEL
               value: ""
             - name: CHAT_TEMPERATURE
               value: "0.3"
-            # If the endpoint does not require Authorization, set to "1"
+            # If the Qwen route returns 401/403, create a Secret with a Bearer token and set CHAT_API_KEY below,
+            # or set CHAT_ALLOW_NO_AUTH to "1" only if the route allows unauthenticated inference.
             - name: CHAT_ALLOW_NO_AUTH
               value: "0"
-            # Prefer a Secret for tokens; or rely on OPENAI_K8S_SECRET_NAME / OPENAI_API_KEY for Bearer.
             # - name: CHAT_API_KEY
             #   valueFrom:
             #     secretKeyRef:

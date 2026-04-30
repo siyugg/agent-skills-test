@@ -39,12 +39,12 @@ spec:
             - name: PI_AGENT_IMAGE_PULL_POLICY
               value: Always
             # Qwen chat — fills inbox/ via CHAT_* only (does not use OPENAI_*).
-            # Route is the OpenShift AI / inference HTTPS URL; path must be /v1/chat/completions (OpenAI-compatible).
+            # Base route + OpenAI-compatible path /v1/chat/completions.
             - name: CHAT_COMPLETIONS_URL
-              value: ""
-            # Must match the model id your InferenceService / serving runtime expects (e.g. qwen3-8b).
+              value: "https://qwen3-8b-marketing-intern.apps.ocp.kr6vb.sandbox2859.opentlc.com/v1/chat/completions"
+            # Must match the model id your serving runtime expects.
             - name: CHAT_MODEL
-              value: ""
+              value: "qwen3-8b"
             - name: CHAT_TEMPERATURE
               value: "0.3"
             # If the Qwen route returns 401/403, create a Secret with a Bearer token and set CHAT_API_KEY below,

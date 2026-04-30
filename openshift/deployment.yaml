@@ -4,15 +4,21 @@ metadata:
   name: marketing-intern
   labels:
     app: marketing-intern
+    app.kubernetes.io/name: marketing-intern
+    app.kubernetes.io/part-of: agent-skills-test
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: marketing-intern
+      app.kubernetes.io/name: marketing-intern
+      app.kubernetes.io/part-of: agent-skills-test
   template:
     metadata:
       labels:
         app: marketing-intern
+        app.kubernetes.io/name: marketing-intern
+        app.kubernetes.io/part-of: agent-skills-test
     spec:
       serviceAccountName: marketing-intern-pi
       containers:

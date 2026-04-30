@@ -48,6 +48,14 @@ Chat does **not** read or send your OpenAI key. Configure Qwen with **`CHAT_COMP
 
 After changing env vars, apply the Deployment and roll the pod.
 
+**If `oc apply -f openshift/deployment.yaml` errors on `spec.selector` immutable:** the Deployment on the cluster was likely created with **`oc apply -k openshift/`**, which adds extra labels to the selector. Either use **`oc apply -k openshift/`** (recommended), or update env without touching the Deployment object:
+
+```bash
+oc set env deployment/marketing-intern -n marketing-intern \
+  CHAT_COMPLETIONS_URL='https://YOUR_ROUTE/v1/chat/completions' \
+  CHAT_MODEL='qwen3-8b'
+```
+
 ## OpenShift binary build + rollout
 
 After changing `backend/`, `frontend/`, or `skills/marketing-intern/`, use:

@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from k8s_pi_job import openshift_job_available, run_pi_agent_job
@@ -34,15 +35,11 @@ def _repo_root() -> Path:
     )
 
 
-def _load_index_html() -> str:
-    p = _repo_root() / "frontend" / "index.html"
-    if not p.is_file():
-        raise RuntimeError(f"missing UI file: {p}")
-    return p.read_text(encoding="utf-8")
-
-
 _REPO_ROOT = _repo_root()
 BASE = _REPO_ROOT / "skills" / "marketing-intern"
+FE_DIST = _REPO_ROOT / "frontend" / "dist"
+FE_INDEX = FE_DIST / "index.html"
+FE_ASSETS = FE_DIST / "assets"
 
 CONTAINER_AGENT = "/opt/app-root/src/agent"
 CONTAINER_INBOX = "/opt/app-root/src/inbox"
@@ -109,6 +106,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Marketing intern — skill bundle", lifespan=lifespan)
+
+if FE_ASSETS.is_dir():
+    app.mount("/assets", StaticFiles(directory=FE_ASSETS), name="fe_assets")
 
 
 def _safe_path(rel: str) -> Path:
@@ -593,12 +593,14 @@ async def api_chat(body: ChatBody) -> JSONResponse:
     return JSONResponse({"reply": reply_text, "patches": patches})
 
 
-_INDEX_HTML = _load_index_html()
-
-
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return _INDEX_HTML
+@app.get("/")
+def index() -> FileResponse:
+    if FE_INDEX.is_file():
+        return FileResponse(FE_INDEX)
+    raise HTTPException(
+        status_code=503,
+        detail="Frontend not built. Run: cd frontend && npm ci && npm run build",
+    )
 
 
 @app.get("/file/{path:path}")

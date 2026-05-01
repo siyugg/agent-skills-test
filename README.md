@@ -7,7 +7,7 @@ Version-controlled skill bundles for agent workflows (inbox / agent / outbox lay
 | Path | Purpose |
 |------|--------|
 | `backend/app/` | Python API (`main.py`, `k8s_pi_job.py`), `requirements.txt` |
-| `frontend/` | Web UI (`index.html` loaded at startup — edit here for layout/CSS/JS) |
+| `frontend/` | React UI (Vite): `src/App.jsx` + four panels under `src/components/` → built to `frontend/dist/` |
 | `skills/marketing-intern/` | Default bundle: `agent/`, `inbox/`, `outbox/` markdown for the demo agent |
 | `skills/pi-test/` | Sample pi-style bundle + optional pi-agent `Containerfile` |
 | `openshift/` | Deployment, Service, Route, RBAC samples |
@@ -28,6 +28,10 @@ podman run --rm -p 8080:8080 marketing-intern:latest
 ```
 
 Open http://localhost:8080 — health: http://localhost:8080/health
+
+**Frontend dev** (API on port 8080): `cd frontend && npm install && npm run dev` — Vite proxies `/api` to the backend.
+
+The container image builds the UI with a Node stage (`docker.io/library/node:20-alpine`). Clusters that cannot pull Docker Hub need a mirrored Node base or a pre-built `frontend/dist/` baked in separately.
 
 ## Chat (Qwen) vs Run agent (OpenAI)
 

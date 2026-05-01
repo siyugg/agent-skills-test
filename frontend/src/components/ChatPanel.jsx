@@ -80,8 +80,9 @@ export function ChatPanel({ config, configFailed, onPatches }) {
       <div className="panel-head">
         <h2 id="lbl-chat">Chat</h2>
         <p>
-          Talk with <strong>Qwen</strong> — it turns your messages into markdown patches under{" "}
-          <code>inbox/</code>. Uses <code>CHAT_*</code> env vars only (not OpenAI).
+          Conversational <strong>Qwen</strong> intake: it captures requirements into the matching inbox sections,
+          fills what it can each turn, and asks follow-ups (e.g. date/time) when fields are missing. Uses{" "}
+          <code>CHAT_*</code> only — not OpenAI.
         </p>
         <p className={conn.className}>{conn.text}</p>
       </div>

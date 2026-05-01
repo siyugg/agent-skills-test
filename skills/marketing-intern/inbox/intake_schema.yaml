@@ -1,0 +1,27 @@
+# Optional hints for the Qwen intake chat. Filenames must match files in this folder.
+# The model also auto-reads ## headings from each inbox file; this file adds “ask if missing” guidance.
+
+files:
+  campaign_brief.md:
+    summary: "Campaign narrative, goals, messaging themes."
+    typically_capture_under:
+      - "## Campaign Name"
+      - "## Campaign Objective"
+      - "## Main Goal"
+  event_details.md:
+    summary: "Event title, schedule, venue, sessions."
+    typically_capture_under:
+      - "## Event Title"
+      - "## Date"
+      - "## Time"
+      - "## Venue"
+    ask_if_unspecified_after_event_idea:
+      - "What date should the event be held?"
+      - "What time (and timezone) should we use?"
+      - "Will it be in person or virtual? If in person, what venue or city?"
+  target_audience.md:
+    summary: "Who we are speaking to and tone."
+  content_requirements.md:
+    summary: "Formats, channels, length, brand constraints."
+  asset_notes.md:
+    summary: "Existing assets, logos, legal, approvals."

@@ -212,9 +212,13 @@ def _folder_docs(folder: str) -> list[dict[str, str]]:
     return out
 
 
+_INBOX_UI_SKIP = frozenset({"intake_schema.yaml"})
+
+
 @app.get("/api/inbox")
 def api_inbox() -> JSONResponse:
-    return JSONResponse(_folder_docs("inbox"))
+    docs = [d for d in _folder_docs("inbox") if d.get("name") not in _INBOX_UI_SKIP]
+    return JSONResponse(docs)
 
 
 @app.get("/api/outbox")
@@ -453,7 +457,69 @@ def _inbox_filenames() -> list[str]:
     d = BASE / "inbox"
     if not d.is_dir():
         return []
-    return sorted([f.name for f in d.iterdir() if f.is_file()])
+    skip = {"intake_schema.yaml", ".intake_schema.yaml"}
+    return sorted(
+        f.name
+        for f in d.iterdir()
+        if f.is_file() and f.name not in skip and not f.name.startswith(".")
+    )
+
+
+def _inbox_heading_outline() -> str:
+    """Extract # / ## headings from inbox markdown so Qwen can map NLP to sections."""
+    d = BASE / "inbox"
+    if not d.is_dir():
+        return "(no inbox directory)"
+    chunks: list[str] = []
+    for name in _inbox_filenames():
+        if not name.lower().endswith(".md"):
+            continue
+        p = d / name
+        try:
+            raw = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        heads: list[str] = []
+        for line in raw.splitlines():
+            s = line.strip()
+            if s.startswith("#"):
+                heads.append(s)
+                if len(heads) >= 14:
+                    break
+        sub = "\n".join("    " + h for h in heads) if heads else "    _(no headings — use sensible sections)_"
+        chunks.append(f"- **{name}**\n{sub}")
+    return "\n".join(chunks) if chunks else "(no markdown inbox files)"
+
+
+def _inbox_intake_schema_prompt() -> str:
+    p = BASE / "inbox" / "intake_schema.yaml"
+    if not p.is_file():
+        return ""
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not isinstance(data, dict) or not data.get("files"):
+        return ""
+    lines: list[str] = ["ADDITIONAL FIELD GUIDANCE (from intake_schema.yaml):", ""]
+    for fname, meta in data["files"].items():
+        if not isinstance(meta, dict):
+            continue
+        lines.append(f"- **{fname}**")
+        if meta.get("summary"):
+            lines.append(f"  - Purpose: {meta['summary']}")
+        cu = meta.get("typically_capture_under")
+        if isinstance(cu, list) and cu:
+            lines.append("  - Map user facts under: " + ", ".join(str(x) for x in cu))
+        aq = meta.get("ask_if_unspecified_after_event_idea")
+        if isinstance(aq, list) and aq:
+            lines.append("  - If user describes an event but omits schedule/place, ask things like:")
+            for q in aq:
+                lines.append(f"    • {q}")
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 def _call_qwen_chat_completions(messages: list[dict[str, str]]) -> str:
@@ -556,18 +622,35 @@ async def api_chat(body: ChatBody) -> JSONResponse:
     if not msg:
         raise HTTPException(status_code=400, detail="empty message")
     inbox_names = _inbox_filenames()
+    outline = _inbox_heading_outline()
+    schema_extra = _inbox_intake_schema_prompt()
     sys_prompt = (
-        "You are the **intake assistant** (Qwen). You ONLY help gather requirements into inbox markdown files. "
-        "You do NOT run the downstream marketing agent — that is a separate step when the user clicks Run agent.\n\n"
-        "Inbox files available (exact names): "
+        "You are a warm, concise **intake assistant** (Qwen). You hold a **natural conversation**: acknowledge the user, "
+        "reflect what you understood, and ask **specific follow-up questions** when important fields are missing.\n"
+        "You only populate the marketing **inbox** markdown files (below). You do **not** run the downstream agent — "
+        "that happens when the user clicks Run agent.\n\n"
+        "**Valid patch filenames (exact):** "
         + ", ".join(inbox_names or ["(none)"])
-        + ".\n\n"
-        "For each user message: (1) reply briefly and naturally in `reply`; (2) in `patches`, append markdown fragments "
-        "to the **exact filenames above** so structured notes land in the right file (dates/venue → event_details.md, "
-        "audience → target_audience.md, campaign narrative → campaign_brief.md, etc.). Use bullets and headings in "
-        "`append` text. If you need more detail, ask in `reply` and use [] for patches.\n\n"
-        "Output **one JSON object only**, no markdown fences, no text before or after the JSON:\n"
-        '{"reply":"<string>","patches":[{"name":"filename.md","append":"<markdown to append>"}]}'
+        + "\n\n"
+        "**Inbox structure** — each file lists its `#` / `##` headings. Map user language to the best file and mirror "
+        "those section names inside your patch text so content appears in the right conceptual fields:\n"
+        + outline
+        + "\n\n"
+        + (schema_extra + "\n\n" if schema_extra else "")
+        + "**Conversation + patches (every turn):**\n"
+        "1. **`reply`**: Sound human. Summarize what you captured this turn. If something critical is unknown "
+        "(e.g. user wants an event but gave no **date** or **time**), ask clearly in one short paragraph — "
+        'example: “What date and time should we schedule it?” Do not invent dates, times, venues, or registrant caps.\n'
+        "2. **`patches`**: Append markdown to the correct **filename(s)**. Start each append with a visible marker such "
+        "as `### Intake (chat)` or `### Assistant draft`, then bullets or short paragraphs **labeled** to match sections "
+        "(e.g. **Event Title**, **Date**, **Campaign objective**). Put topics/narrative in `campaign_brief.md`; dates, "
+        "times, venue, sessions in `event_details.md`; audience in `target_audience.md`; formats/channels in "
+        "`content_requirements.md`; assets/legal in `asset_notes.md`. Use **TBD** for anything you are still asking "
+        "about.\n"
+        "3. If the user message has **nothing new** to store yet (pure clarification request), you may use "
+        '`"patches": []` but still answer helpfully in `reply`.\n'
+        "4. Always output **valid JSON only** — no markdown code fences, no prose outside the JSON:\n"
+        '{"reply":"<string>","patches":[{"name":"filename.md","append":"<markdown appended to end of file>"}]}'
     )
     messages_ch: list[dict[str, str]] = [{"role": "system", "content": sys_prompt}]
     for h in body.history[-16:]:

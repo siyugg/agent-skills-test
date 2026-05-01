@@ -42,7 +42,7 @@ Two separate integrations:
 | **Chat** | **Qwen** (OpenShift AI or any OpenAI-compatible `POST …/v1/chat/completions`) | **`CHAT_*` only** — never `OPENAI_*` | Converses with the user and **writes into `inbox/*.md`** via JSON patches from the model. |
 | **Run agent** | **OpenAI API** | **`OPENAI_API_KEY`** / **`OPENAI_K8S_SECRET_NAME`** | Runs the pi-agent Job with the inbox + skills you prepared in chat. |
 
-Chat does **not** read or send your OpenAI key. Configure Qwen with **`CHAT_COMPLETIONS_URL`**, **`CHAT_MODEL`**, and **`CHAT_API_KEY`** (or **`CHAT_ALLOW_NO_AUTH=1`** when allowed).
+Chat does **not** read or send your OpenAI key. Configure Qwen with **`CHAT_COMPLETIONS_URL`**, **`CHAT_MODEL`**, and a **Bearer token** via **`CHAT_API_KEY`** (or **`CHAT_ALLOW_NO_AUTH=1`** only if the predictor allows unauthenticated access).
 
 **Qwen / chat wiring** (OpenShift AI `marketing-intern`)
 
@@ -52,7 +52,8 @@ Chat does **not** read or send your OpenAI key. Configure Qwen with **`CHAT_COMP
 | **External / local dev** | Route | `https://qwen3-8b-marketing-intern.apps.ocp.kr6vb.sandbox2859.opentlc.com/v1/chat/completions` |
 
 1. Set **`CHAT_COMPLETIONS_URL`** to one of the rows above (always append **`/v1/chat/completions`**).
-2. **Env** (see `openshift/deployment.yaml`): **`CHAT_MODEL`** (e.g. `qwen3-8b`), optional **`CHAT_API_KEY`**, or **`CHAT_ALLOW_NO_AUTH=1`** when the endpoint allows it.
+2. **Auth** — OpenShift AI often expects `Authorization: Bearer <token>`. The repo’s Deployment injects **`CHAT_API_KEY`** from Secret **`default-token-qwen3-8b-sa`**, key **`token`** (the Qwen service account’s long-lived API token in the `marketing-intern` namespace). If chat returns **401/403**, confirm that secret exists and that your model server trusts that token. If your install does not require auth, set **`CHAT_ALLOW_NO_AUTH=1`** and remove the **`CHAT_API_KEY`** env block.
+3. **Other env** (see `openshift/deployment.yaml`): **`CHAT_MODEL`** (e.g. `qwen3-8b`), **`CHAT_TEMPERATURE`**, etc.
 
 If HTTPS to the **internal** predictor fails TLS verification inside the pod, check OpenShift AI / serving TLS (cluster CA) or temporarily point **`CHAT_COMPLETIONS_URL`** at the external Route.
 

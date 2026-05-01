@@ -44,19 +44,26 @@ Two separate integrations:
 
 Chat does **not** read or send your OpenAI key. Configure Qwen with **`CHAT_COMPLETIONS_URL`**, **`CHAT_MODEL`**, and **`CHAT_API_KEY`** (or **`CHAT_ALLOW_NO_AUTH=1`** when allowed).
 
-**Qwen / chat wiring**
+**Qwen / chat wiring** (OpenShift AI `marketing-intern`)
 
-1. **URL** — HTTPS Route to your inference service + **`/v1/chat/completions`** (confirm with your OpenShift AI / KServe docs).
-2. **Env** (see `openshift/deployment.yaml`):
-   - **`CHAT_COMPLETIONS_URL`**, **`CHAT_MODEL`**, optional **`CHAT_API_KEY`**, or **`CHAT_ALLOW_NO_AUTH=1`**.
+| Use | Base URL | `CHAT_COMPLETIONS_URL` value |
+|-----|----------|------------------------------|
+| **Pods in cluster** (default in `openshift/deployment.yaml`) | Predictor Service | `https://qwen3-8b-predictor.marketing-intern.svc.cluster.local:8443/v1/chat/completions` |
+| **External / local dev** | Route | `https://qwen3-8b-marketing-intern.apps.ocp.kr6vb.sandbox2859.opentlc.com/v1/chat/completions` |
+
+1. Set **`CHAT_COMPLETIONS_URL`** to one of the rows above (always append **`/v1/chat/completions`**).
+2. **Env** (see `openshift/deployment.yaml`): **`CHAT_MODEL`** (e.g. `qwen3-8b`), optional **`CHAT_API_KEY`**, or **`CHAT_ALLOW_NO_AUTH=1`** when the endpoint allows it.
+
+If HTTPS to the **internal** predictor fails TLS verification inside the pod, check OpenShift AI / serving TLS (cluster CA) or temporarily point **`CHAT_COMPLETIONS_URL`** at the external Route.
 
 After changing env vars, apply the Deployment and roll the pod.
 
 **If `oc apply -f openshift/deployment.yaml` errors on `spec.selector` immutable:** the Deployment on the cluster was likely created with **`oc apply -k openshift/`**, which adds extra labels to the selector. Either use **`oc apply -k openshift/`** (recommended), or update env without touching the Deployment object:
 
 ```bash
+# In-cluster Qwen (recommended from marketing-intern pods)
 oc set env deployment/marketing-intern -n marketing-intern \
-  CHAT_COMPLETIONS_URL='https://YOUR_ROUTE/v1/chat/completions' \
+  CHAT_COMPLETIONS_URL='https://qwen3-8b-predictor.marketing-intern.svc.cluster.local:8443/v1/chat/completions' \
   CHAT_MODEL='qwen3-8b'
 ```
 

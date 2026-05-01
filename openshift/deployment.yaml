@@ -45,9 +45,10 @@ spec:
             - name: PI_AGENT_IMAGE_PULL_POLICY
               value: Always
             # Qwen chat — fills inbox/ via CHAT_* only (does not use OPENAI_*).
-            # Base route + OpenAI-compatible path /v1/chat/completions.
+            # In-cluster: OpenShift AI predictor (preferred from this pod).
+            # External (browser / off-cluster): https://qwen3-8b-marketing-intern.apps.ocp.kr6vb.sandbox2859.opentlc.com/v1/chat/completions
             - name: CHAT_COMPLETIONS_URL
-              value: "https://qwen3-8b-marketing-intern.apps.ocp.kr6vb.sandbox2859.opentlc.com/v1/chat/completions"
+              value: "https://qwen3-8b-predictor.marketing-intern.svc.cluster.local:8443/v1/chat/completions"
             # Must match the model id your serving runtime expects.
             - name: CHAT_MODEL
               value: "qwen3-8b"

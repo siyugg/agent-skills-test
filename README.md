@@ -88,6 +88,8 @@ Then apply manifests as needed:
 oc apply -k openshift/
 ```
 
+Use **`oc apply -k openshift/`**, not only `oc apply -f openshift/deployment.yaml`, so Kustomize rewrites the container image to the integrated registry (`images:` in `openshift/kustomization.yaml`). Applying the raw Deployment alone leaves `image: marketing-intern:latest`, which pulls from Docker Hub and fails.
+
 Route: `oc get route marketing-intern -n marketing-intern`
 
 ## pi-agent image (optional)
